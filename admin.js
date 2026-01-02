@@ -16,105 +16,396 @@ const db = firebase.database();
 
 const SUPER_ADMIN = "admin@sunny.mavale";
 
-/******** AUTH CHECK ********/
+/******** AUTH CHECK WITH SESSION MANAGEMENT ********/
 auth.onAuthStateChanged(user => {
-  if (!user) return;
+  if (!user) {
+    showLoginPanel();
+    return;
+  }
 
   const key = user.email.replace(/\./g, "_");
 
   db.ref("admins/" + key).once("value").then(snap => {
     if (!snap.exists()) {
-      alert("Not authorized");
-      auth.signOut();
+      showStatus("Not authorized as admin", "error");
+      setTimeout(() => {
+        auth.signOut();
+      }, 2000);
       return;
     }
 
-    document.getElementById("loginBox").style.display = "none";
-    document.getElementById("panel").style.display = "block";
+    showAdminPanel(user.email);
     loadLinks();
   });
 });
 
-/******** LOGIN ********/
+/******** SHOW/HIDE PANELS ********/
+function showLoginPanel() {
+  document.getElementById("loginBox").style.display = "block";
+  document.getElementById("panel").style.display = "none";
+  document.body.classList.remove("admin-view");
+}
+
+function showAdminPanel(email) {
+  document.getElementById("loginBox").style.display = "none";
+  document.getElementById("panel").style.display = "block";
+  document.body.classList.add("admin-view");
+  document.getElementById("adminEmail").textContent = email;
+  
+  // Set welcome message based on time
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
+  document.getElementById("welcomeText").textContent = `${greeting}, ${email.split('@')[0]}`;
+}
+
+/******** SHOW STATUS MESSAGES ********/
+function showStatus(message, type = "success") {
+  const statusEl = document.getElementById("statusMessage");
+  statusEl.textContent = message;
+  statusEl.className = `status ${type}`;
+  statusEl.style.display = "block";
+  
+  setTimeout(() => {
+    statusEl.style.display = "none";
+  }, 3000);
+}
+
+/******** ENHANCED LOGIN ********/
 function login() {
-  const email = document.getElementById("email").value;
-  const pass = document.getElementById("pass").value;
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value.trim();
+  
+  if (!email || !pass) {
+    showStatus("Please enter both email and password", "error");
+    return;
+  }
+
+  // Show loading state
+  const loginBtn = document.getElementById("loginBtn");
+  loginBtn.classList.add("loading");
+  loginBtn.disabled = true;
 
   auth.signInWithEmailAndPassword(email, pass)
+    .then(() => {
+      showStatus("Login successful!", "success");
+    })
     .catch(err => {
-      document.getElementById("error").innerText = err.message;
+      console.error("Login error:", err);
+      let errorMessage = "Login failed";
+      
+      switch(err.code) {
+        case 'auth/invalid-email':
+          errorMessage = "Invalid email address";
+          break;
+        case 'auth/user-disabled':
+          errorMessage = "Account disabled";
+          break;
+        case 'auth/user-not-found':
+          errorMessage = "Account not found";
+          break;
+        case 'auth/wrong-password':
+          errorMessage = "Incorrect password";
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = "Too many attempts. Try again later";
+          break;
+      }
+      
+      showStatus(errorMessage, "error");
+    })
+    .finally(() => {
+      loginBtn.classList.remove("loading");
+      loginBtn.disabled = false;
     });
 }
 
-/******** LOGOUT ********/
+/******** ENHANCED LOGOUT ********/
 function logout() {
-  auth.signOut();
-  location.reload();
+  // Show confirmation for logout
+  if (confirm("Are you sure you want to logout?")) {
+    auth.signOut().then(() => {
+      showStatus("Logged out successfully", "success");
+      setTimeout(() => {
+        location.reload();
+      }, 1000);
+    });
+  }
 }
 
-/******** ADD / UPDATE LINK ********/
+/******** VALIDATE URL ********/
+function isValidUrl(string) {
+  try {
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/******** ENHANCED ADD/UPDATE LINK ********/
 function addLink() {
-  const code = document.getElementById("code").value.trim();
+  const code = document.getElementById("code").value.trim().toLowerCase();
   const url = document.getElementById("url").value.trim();
   const days = parseInt(document.getElementById("days").value);
-  const pwd = document.getElementById("pwd").value;
+  const pwd = document.getElementById("pwd").value.trim();
 
-  if (!code || !url || !days) {
-    alert("Fill all required fields");
+  // Validation
+  if (!code || code.length < 3) {
+    showStatus("Code must be at least 3 characters", "error");
+    return;
+  }
+  
+  if (!url) {
+    showStatus("URL is required", "error");
+    return;
+  }
+  
+  if (!isValidUrl(url) && !url.startsWith('/')) {
+    showStatus("Please enter a valid URL or path", "error");
+    return;
+  }
+  
+  if (!days || days < 1 || days > 3650) {
+    showStatus("Days must be between 1 and 3650", "error");
     return;
   }
 
   const expires = Date.now() + days * 86400000;
-
-  db.ref("links/" + code).set({
+  const linkData = {
     url: url,
     expires: expires,
     password: pwd || null,
-    clicks: 0
-  });
+    clicks: 0,
+    created: Date.now(),
+    createdBy: auth.currentUser.email
+  };
 
-  alert("Link saved");
+  // Show loading
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.classList.add("loading");
+
+  db.ref("links/" + code).set(linkData)
+    .then(() => {
+      showStatus(`Link "${code}" saved successfully!`, "success");
+      // Clear form
+      document.getElementById("code").value = "";
+      document.getElementById("url").value = "";
+      document.getElementById("days").value = "30";
+      document.getElementById("pwd").value = "";
+      
+      // Generate preview URL
+      const previewUrl = `${window.location.origin}/${code}`;
+      document.getElementById("previewUrl").innerHTML = 
+        `Preview: <a href="${previewUrl}" target="_blank">${previewUrl}</a>`;
+    })
+    .catch(err => {
+      showStatus("Error saving link: " + err.message, "error");
+    })
+    .finally(() => {
+      setTimeout(() => {
+        saveBtn.classList.remove("loading");
+      }, 500);
+    });
 }
 
-/******** LOAD LINKS ********/
+/******** ENHANCED LOAD LINKS WITH FILTERING ********/
 function loadLinks() {
   db.ref("links").on("value", snap => {
     const list = document.getElementById("links");
+    const stats = document.getElementById("linkStats");
+    
+    if (!snap.exists()) {
+      list.innerHTML = '<li class="no-links">No links found. Create your first link!</li>';
+      stats.innerHTML = "Total Links: 0";
+      return;
+    }
+
+    let totalLinks = 0;
+    let totalClicks = 0;
+    let activeLinks = 0;
+    const now = Date.now();
     list.innerHTML = "";
 
     snap.forEach(child => {
+      totalLinks++;
       const d = child.val();
+      const clicks = d.clicks || 0;
+      totalClicks += clicks;
+      
+      const isExpired = d.expires && d.expires < now;
+      if (!isExpired) activeLinks++;
+      
+      const createdDate = d.created ? new Date(d.created).toLocaleDateString() : "Unknown";
+      const expiresDate = d.expires ? new Date(d.expires).toLocaleDateString() : "Never";
+      
       const li = document.createElement("li");
+      li.className = isExpired ? "expired" : "active";
       li.innerHTML = `
-        <b>${child.key}</b><br>
-        ${d.url}<br>
-        Clicks: ${d.clicks || 0}
-        <button onclick="deleteLink('${child.key}')">Delete</button>
+        <div class="link-header">
+          <span class="link-code">${child.key}</span>
+          <span class="link-status ${isExpired ? 'status-expired' : 'status-active'}">
+            ${isExpired ? 'Expired' : 'Active'}
+          </span>
+        </div>
+        <div class="link-url">${d.url}</div>
+        <div class="link-meta">
+          <span class="link-clicks">👆 ${clicks} clicks</span>
+          <span class="link-date">📅 Expires: ${expiresDate}</span>
+        </div>
+        <div class="link-actions">
+          <button class="btn-small btn-copy" onclick="copyLink('${child.key}')" title="Copy URL">
+            📋 Copy
+          </button>
+          <button class="btn-small btn-delete" onclick="deleteLink('${child.key}')" title="Delete">
+            🗑️ Delete
+          </button>
+        </div>
       `;
       list.appendChild(li);
     });
+
+    // Update stats
+    stats.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">${totalLinks}</div>
+          <div class="stat-label">Total Links</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${activeLinks}</div>
+          <div class="stat-label">Active</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${totalClicks}</div>
+          <div class="stat-label">Total Clicks</div>
+        </div>
+      </div>
+    `;
   });
 }
 
-/******** DELETE LINK ********/
+/******** COPY LINK TO CLIPBOARD ********/
+function copyLink(code) {
+  const url = `${window.location.origin}/${code}`;
+  navigator.clipboard.writeText(url)
+    .then(() => {
+      showStatus("Link copied to clipboard!", "success");
+    })
+    .catch(err => {
+      showStatus("Failed to copy: " + err.message, "error");
+    });
+}
+
+/******** ENHANCED DELETE LINK ********/
 function deleteLink(code) {
-  if (confirm("Delete " + code + "?")) {
-    db.ref("links/" + code).remove();
+  if (confirm(`Are you sure you want to delete "${code}"?\nThis action cannot be undone.`)) {
+    db.ref("links/" + code).remove()
+      .then(() => {
+        showStatus(`Link "${code}" deleted`, "success");
+      })
+      .catch(err => {
+        showStatus("Error deleting link: " + err.message, "error");
+      });
   }
 }
 
-/******** ADD ADMIN ********/
+/******** ENHANCED ADD ADMIN ********/
 function addAdmin() {
   if (auth.currentUser.email !== SUPER_ADMIN) {
-    alert("Only super admin allowed");
+    showStatus("Only super admin can add new admins", "error");
     return;
   }
 
   const email = document.getElementById("newAdmin").value.trim();
-  if (!email) return;
+  if (!email) {
+    showStatus("Please enter an email address", "error");
+    return;
+  }
+
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    showStatus("Please enter a valid email address", "error");
+    return;
+  }
 
   const key = email.replace(/\./g, "_");
-  db.ref("admins/" + key).set("editor");
+  
+  // Check if admin already exists
+  db.ref("admins/" + key).once("value").then(snap => {
+    if (snap.exists()) {
+      showStatus("This admin already exists", "error");
+      return;
+    }
 
-  alert("Admin added");
+    db.ref("admins/" + key).set({
+      email: email,
+      role: "editor",
+      addedBy: auth.currentUser.email,
+      addedAt: Date.now()
+    });
+
+    showStatus(`Admin "${email}" added successfully`, "success");
+    document.getElementById("newAdmin").value = "";
+  });
 }
+
+/******** QUICK ACTIONS ********/
+function quickAdd(days = 30) {
+  document.getElementById("days").value = days;
+  showStatus(`Default expiry set to ${days} days`, "success");
+}
+
+/******** SEARCH LINKS ********/
+function searchLinks() {
+  const searchTerm = document.getElementById("searchBox").value.toLowerCase();
+  const links = document.querySelectorAll('#links li');
+  
+  links.forEach(link => {
+    const text = link.textContent.toLowerCase();
+    link.style.display = text.includes(searchTerm) ? "flex" : "none";
+  });
+}
+
+/******** KEYBOARD SHORTCUTS ********/
+document.addEventListener('keydown', (e) => {
+  // Ctrl/Cmd + Enter to save
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if (document.getElementById("code").value) {
+      addLink();
+    }
+  }
+  
+  // Escape to clear search
+  if (e.key === 'Escape') {
+    document.getElementById("searchBox").value = "";
+    searchLinks();
+  }
+});
+
+/******** INITIALIZE ON LOAD ********/
+document.addEventListener('DOMContentLoaded', () => {
+  // Auto-focus first input
+  if (document.getElementById("email")) {
+    document.getElementById("email").focus();
+  }
+  
+  // Add event listeners for enter key
+  const inputs = document.querySelectorAll('input');
+  inputs.forEach(input => {
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        if (input.id === 'email') {
+          document.getElementById('pass').focus();
+        } else if (input.id === 'pass') {
+          login();
+        } else if (input.id === 'code' || input.id === 'url') {
+          const nextInput = input.nextElementSibling;
+          if (nextInput && nextInput.tagName === 'INPUT') {
+            nextInput.focus();
+          }
+        }
+      }
+    });
+  });
+});
