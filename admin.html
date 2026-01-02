@@ -1,38 +1,46 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Admin Panel</title>
+  <meta charset="UTF-8">
+  <title>Shortlink Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <link rel="stylesheet" href="admin.css">
+
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
-<div id="login">
+<!-- LOGIN -->
+<div id="loginBox">
   <h2>Admin Login</h2>
-  <input id="email" placeholder="Email">
-  <input id="pass" type="password" placeholder="Password">
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="pass" placeholder="Password">
   <button onclick="login()">Login</button>
+  <p id="error"></p>
 </div>
 
-<div id="panel" hidden>
-  <h2>Shortlink Admin</h2>
+<!-- ADMIN PANEL -->
+<div id="panel" style="display:none">
+  <h2>Shortlink Admin Panel</h2>
 
-  <input id="code" placeholder="Code">
-  <input id="url" placeholder="URL">
-  <input id="days" placeholder="Expiry days">
+  <input id="code" placeholder="Short code (e.g. 9960)">
+  <input id="url" placeholder="Destination URL">
+  <input id="days" type="number" placeholder="Expiry (days)">
   <input id="pwd" placeholder="Password (optional)">
-  <button onclick="addLink()">Add / Update</button>
+  <button onclick="addLink()">Add / Update Link</button>
 
-  <h3>Links</h3>
+  <h3>All Links</h3>
   <ul id="links"></ul>
 
-  <h3>Admins (Super only)</h3>
-  <input id="newAdmin" placeholder="Email">
+  <h3>Admins (Super Admin Only)</h3>
+  <input id="newAdmin" placeholder="Admin Email">
   <button onclick="addAdmin()">Add Admin</button>
 
-  <button onclick="logout()">Logout</button>
+  <button class="logout" onclick="logout()">Logout</button>
 </div>
 
 <script src="admin.js"></script>
