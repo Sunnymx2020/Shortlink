@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Shortlink Admin</title>
+
+  <link rel="stylesheet" href="admin.css">
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+<div id="loginBox">
+  <h2>Admin Login</h2>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <p id="loginError"></p>
+</div>
+
+<div id="adminPanel" style="display:none">
+  <h2>Shortlink Admin Panel</h2>
+
+  <div class="form">
+    <input id="code" placeholder="Short code (e.g. 9960)">
+    <input id="url" placeholder="Destination URL">
+    <input id="days" type="number" placeholder="Expiry days">
+    <button onclick="addLink()">Add Link</button>
+  </div>
+
+  <h3>All Links</h3>
+  <ul id="linkList"></ul>
+
+  <button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>
