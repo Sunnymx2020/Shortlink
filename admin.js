@@ -1,4 +1,4 @@
-/************ FIREBASE CONFIG ************/
+/******** FIREBASE CONFIG ********/
 const firebaseConfig = {
   apiKey: "AIzaSyBPF1VE82Y3VkZe6IibjqKxBC-XHjM_Wco",
   authDomain: "chat-2024-ff149.firebaseapp.com",
@@ -9,46 +9,50 @@ const firebaseConfig = {
   appId: "1:146349109253:android:e593afbf0584762519ac6c"
 };
 
-/************ INIT ************/
 firebase.initializeApp(firebaseConfig);
+
 const auth = firebase.auth();
 const db = firebase.database();
 
-/************ SUPER ADMIN ************/
-const SUPER = "admin@sunny.mavale";
+const SUPER_ADMIN = "admin@sunny.mavale";
 
-/************ AUTH STATE ************/
-auth.onAuthStateChanged(u => {
-  if (!u) return;
+/******** AUTH CHECK ********/
+auth.onAuthStateChanged(user => {
+  if (!user) return;
 
-  const key = u.email.replace(/\./g, "_");
-  db.ref("admins/" + key).once("value").then(r => {
-    if (!r.exists()) {
+  const key = user.email.replace(/\./g, "_");
+
+  db.ref("admins/" + key).once("value").then(snap => {
+    if (!snap.exists()) {
       alert("Not authorized");
       auth.signOut();
       return;
     }
 
-    document.getElementById("login").hidden = true;
-    document.getElementById("panel").hidden = false;
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("panel").style.display = "block";
     loadLinks();
   });
 });
 
-/************ LOGIN ************/
+/******** LOGIN ********/
 function login() {
-  auth.signInWithEmailAndPassword(
-    document.getElementById("email").value,
-    document.getElementById("pass").value
-  ).catch(err => alert(err.message));
+  const email = document.getElementById("email").value;
+  const pass = document.getElementById("pass").value;
+
+  auth.signInWithEmailAndPassword(email, pass)
+    .catch(err => {
+      document.getElementById("error").innerText = err.message;
+    });
 }
 
-/************ LOGOUT ************/
+/******** LOGOUT ********/
 function logout() {
   auth.signOut();
+  location.reload();
 }
 
-/************ ADD / UPDATE LINK ************/
+/******** ADD / UPDATE LINK ********/
 function addLink() {
   const code = document.getElementById("code").value.trim();
   const url = document.getElementById("url").value.trim();
@@ -72,38 +76,37 @@ function addLink() {
   alert("Link saved");
 }
 
-/************ LOAD LINKS ************/
+/******** LOAD LINKS ********/
 function loadLinks() {
-  db.ref("links").on("value", s => {
+  db.ref("links").on("value", snap => {
     const list = document.getElementById("links");
     list.innerHTML = "";
 
-    s.forEach(c => {
-      const d = c.val();
+    snap.forEach(child => {
+      const d = child.val();
       const li = document.createElement("li");
       li.innerHTML = `
-        <span>
-          <b>${c.key}</b> → ${d.url}<br>
-          clicks: ${d.clicks || 0}
-        </span>
-        <button onclick="delLink('${c.key}')">Delete</button>
+        <b>${child.key}</b><br>
+        ${d.url}<br>
+        Clicks: ${d.clicks || 0}
+        <button onclick="deleteLink('${child.key}')">Delete</button>
       `;
       list.appendChild(li);
     });
   });
 }
 
-/************ DELETE LINK ************/
-function delLink(code) {
+/******** DELETE LINK ********/
+function deleteLink(code) {
   if (confirm("Delete " + code + "?")) {
     db.ref("links/" + code).remove();
   }
 }
 
-/************ ADD ADMIN (SUPER ONLY) ************/
+/******** ADD ADMIN ********/
 function addAdmin() {
-  if (auth.currentUser.email !== SUPER) {
-    alert("Only super admin can add admins");
+  if (auth.currentUser.email !== SUPER_ADMIN) {
+    alert("Only super admin allowed");
     return;
   }
 
