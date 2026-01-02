@@ -12,42 +12,38 @@
 <body>
   <p>🔄 Redirecting, please wait...</p>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyBPF1VE82Y3VkZe6IibjqKxBC-XHjM_Wco",
-      authDomain: "chat-2024-ff149.firebaseapp.com",
-      databaseURL: "https://chat-2024-ff149-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "chat-2024-ff149",
-      storageBucket: "chat-2024-ff149.appspot.com",
-      messagingSenderId: "146349109253",
-      appId: "1:146349109253:android:e593afbf0584762519ac6c"
-    };
+<script>
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+const code = new URLSearchParams(location.search).get("code");
+if (!code) {
+  document.body.innerHTML = "Invalid link";
+}
 
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+db.ref("links/" + code).once("value").then(snap => {
+  const data = snap.val();
+  if (!data) return document.body.innerHTML = "Link not found";
 
-    if (!code) {
-      document.body.innerHTML = "⚠️ Invalid link: No code provided.";
-    } else {
-      db.ref("links/" + code).once("value").then(snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-          document.body.innerHTML = "❌ Link not found.";
-        } else {
-          const now = Date.now();
-          if (data.expires < now) {
-            document.body.innerHTML = "⛔ Link has expired.";
-          } else {
-            window.location.href = data.url;
-          }
-        }
-      }).catch(err => {
-        document.body.innerHTML = "🔥 Firebase error: " + err.message;
-      });
-    }
-  </script>
+  if (Date.now() > data.expires) {
+    db.ref("links/" + code).remove();
+    return document.body.innerHTML = "Link expired";
+  }
+
+  if (data.password) {
+    const p = prompt("Enter password");
+    if (p !== data.password) return alert("Wrong password");
+  }
+
+  db.ref("links/" + code + "/clicks").transaction(c => (c || 0) + 1);
+  db.ref("logs/" + code).push({
+    time: Date.now(),
+    device: /Mobi/.test(navigator.userAgent) ? "mobile" : "desktop"
+  });
+
+  location.href = data.url;
+});
+</script>
+
 </body>
 </html>
